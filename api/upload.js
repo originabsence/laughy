@@ -34,73 +34,79 @@ export default async function handler(req, res) {
 
   const blob = new Blob([buffer]);
 
-  const [fileio, catbox, zero] = await Promise.all([
+  const [fileio, tmpfiles, transfersh] = await Promise.all([
     uploadToFileIo(blob, fileName),
-    uploadToCatbox(blob, fileName),
-    uploadToZero(blob, fileName)
+    uploadToTmpfiles(blob, fileName),
+    uploadToTransferSh(buffer, fileName)
   ]);
 
-  res.status(200).json({ fileio, catbox, zero });
+  res.status(200).json({ fileio, tmpfiles, transfersh });
 }
 
-async function uploadToFileIo(blob, fileName) {
+async function uploadToFileIo(blob, fileName, attempt = 1) {
   try {
     const fd = new FormData();
     fd.append('file', blob, fileName);
-    const r = await fetch('https://file.io', {
+    const r = await fetch('https://file.io/', {
       method: 'POST',
       body: fd,
-      headers: { 'User-Agent': 'oo-uploader/1.0' }
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; oo-uploader/1.0)',
+        'Accept': 'application/json'
+      }
     });
     const text = await r.text();
     let data;
-    try { data = JSON.parse(text); } catch { throw new Error(`bad response (${r.status}): ${text.slice(0, 150)}`); }
-    if (!data.success || !data.link) throw new Error(`rejected (${r.status}): ${text.slice(0, 150)}`);
-    console.error('fileio ok');
+    try { data = JSON.parse(text); } catch { data = null; }
+
+    if (!data || !data.success || !data.link) {
+      if (attempt < 2) return uploadToFileIo(blob, fileName, attempt + 1);
+      throw new Error(`rejected (${r.status}): ${text.slice(0, 150) || 'empty response'}`);
+    }
     return { ok: true, link: data.link };
   } catch (e) {
+    if (attempt < 2) return uploadToFileIo(blob, fileName, attempt + 1);
     console.error('fileio failed:', e.message || e);
     return { ok: false, error: String(e.message || e) };
   }
 }
 
-async function uploadToCatbox(blob, fileName) {
+async function uploadToTmpfiles(blob, fileName) {
   try {
     const fd = new FormData();
-    fd.append('reqtype', 'fileupload');
-    fd.append('fileToUpload', blob, fileName);
-    const r = await fetch('https://catbox.moe/user/api.php', {
+    fd.append('file', blob, fileName);
+    const r = await fetch('https://tmpfiles.org/api/v1/upload', {
       method: 'POST',
       body: fd,
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; oo-uploader/1.0)' }
     });
-    const text = (await r.text()).trim();
-    if (!text.startsWith('http')) throw new Error(`rejected (${r.status}): ${text.slice(0, 150)}`);
-    console.error('catbox ok');
-    return { ok: true, link: text };
+    const text = await r.text();
+    let data;
+    try { data = JSON.parse(text); } catch { throw new Error(`bad response (${r.status}): ${text.slice(0, 150)}`); }
+    if (data.status !== 'success' || !data.data || !data.data.url) {
+      throw new Error(`rejected (${r.status}): ${text.slice(0, 150)}`);
+    }
+    const directLink = data.data.url.replace('tmpfiles.org/', 'tmpfiles.org/dl/');
+    return { ok: true, link: directLink };
   } catch (e) {
-    console.error('catbox failed:', e.message || e);
+    console.error('tmpfiles failed:', e.message || e);
     return { ok: false, error: String(e.message || e) };
   }
 }
 
-async function uploadToZero(blob, fileName) {
+async function uploadToTransferSh(buffer, fileName) {
   try {
-    const fd = new FormData();
-    fd.append('file', blob, fileName);
-    const r = await fetch('https://0x0.st', {
-      method: 'POST',
-      body: fd,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; oo-uploader/1.0)'
-      }
+    const safeName = encodeURIComponent(fileName || 'file');
+    const r = await fetch(`https://transfer.sh/${safeName}`, {
+      method: 'PUT',
+      body: buffer,
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; oo-uploader/1.0)' }
     });
     const text = (await r.text()).trim();
     if (!text.startsWith('http')) throw new Error(`rejected (${r.status}): ${text.slice(0, 150)}`);
-    console.error('0x0 ok');
     return { ok: true, link: text };
   } catch (e) {
-    console.error('0x0 failed:', e.message || e);
+    console.error('transfersh failed:', e.message || e);
     return { ok: false, error: String(e.message || e) };
   }
 }
