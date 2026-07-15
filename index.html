@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>^o^</title>
+<link rel="icon" href="/favicon.ico">
+<link href="https://fonts.bunny.net/css?family=lexend:400,500,600,700" rel="stylesheet">
+<style>
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html, body{ height:100%; }
+  body{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:100vh;
+    background:#0a1128;
+    font-family:'Lexend', sans-serif;
+    color:#7dd3fc;
+    padding:20px;
+  }
+  .card{
+    width:100%;
+    max-width:440px;
+    background:#0f1c33;
+    border:1px solid #1c3a5e;
+    border-radius:14px;
+    padding:28px;
+  }
+  h1{
+    font-size:1.6rem;
+    text-align:center;
+    margin-bottom:2px;
+  }
+  .sub{
+    text-align:center;
+    font-size:0.75rem;
+    color:#4fb3e8;
+    opacity:0.7;
+    margin-bottom:24px;
+  }
+  #dropzone{
+    border:1.5px dashed #26558a;
+    border-radius:10px;
+    padding:28px 14px;
+    text-align:center;
+    cursor:pointer;
+    font-size:0.9rem;
+    color:#a9dffb;
+  }
+  #dropzone.drag{ border-color:#7dd3fc; color:#7dd3fc; }
+  #fileInput{ display:none; }
+  #fileName{
+    margin-top:10px;
+    font-size:0.8rem;
+    color:#4fb3e8;
+    text-align:center;
+    word-break:break-all;
+  }
+  #sendBtn{
+    width:100%;
+    margin-top:16px;
+    padding:11px;
+    background:#26558a;
+    border:1px solid #4fb3e8;
+    color:#7dd3fc;
+    border-radius:8px;
+    font-family:'Lexend', sans-serif;
+    font-size:0.95rem;
+    font-weight:600;
+    cursor:pointer;
+  }
+  #sendBtn:hover{ background:#4fb3e8; color:#04121f; }
+  #sendBtn:disabled{ opacity:0.5; cursor:default; background:#26558a; color:#7dd3fc; }
+  #status{
+    margin-top:12px;
+    text-align:center;
+    font-size:0.8rem;
+    color:#4fb3e8;
+    min-height:1em;
+  }
+  #links{ margin-top:16px; display:flex; flex-direction:column; gap:8px; }
+  .link-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    background:#101f38;
+    border:1px solid #1c3a5e;
+    border-radius:8px;
+    padding:9px 12px;
+    font-size:0.8rem;
+  }
+  .link-row .label{ color:#4fb3e8; flex-shrink:0; }
+  .link-row a{
+    color:#7dd3fc;
+    text-decoration:none;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .link-row a:hover{ text-decoration:underline; }
+  .link-row .down{ color:#5a7a9c; }
+  .hint{
+    margin-top:14px;
+    text-align:center;
+    font-size:0.68rem;
+    color:#2f5480;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>^o^</h1>
+    <div class="sub">by Origin</div>
+
+    <div id="dropzone">choose a file, or drop it here</div>
+    <input type="file" id="fileInput">
+    <div id="fileName"></div>
+
+    <button id="sendBtn">send it</button>
+    <div id="status"></div>
+    <div id="links"></div>
+    <div class="hint">max ~4mb</div>
+  </div>
+
+<script>
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const fileName = document.getElementById('fileName');
+  const sendBtn = document.getElementById('sendBtn');
+  const statusEl = document.getElementById('status');
+  const linksEl = document.getElementById('links');
+
+  let chosenFile = null;
+
+  dropzone.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', () => {
+    if(fileInput.files[0]) setFile(fileInput.files[0]);
+  });
+
+  ['dragover','dragenter'].forEach(evt =>
+    dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.add('drag'); })
+  );
+  ['dragleave','drop'].forEach(evt =>
+    dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.remove('drag'); })
+  );
+  dropzone.addEventListener('drop', e => {
+    if(e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+  });
+
+  function setFile(file){
+    chosenFile = file;
+    fileName.textContent = file.name;
+    linksEl.innerHTML = '';
+    statusEl.textContent = '';
+  }
+
+  sendBtn.addEventListener('click', async () => {
+    if(!chosenFile){ statusEl.textContent = 'pick a file first'; return; }
+    sendBtn.disabled = true;
+    statusEl.textContent = 'sending...';
+    linksEl.innerHTML = '';
+
+    try{
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'X-File-Name': encodeURIComponent(chosenFile.name)
+        },
+        body: chosenFile
+      });
+
+      if(!res.ok){
+        statusEl.textContent = 'failed';
+        sendBtn.disabled = false;
+        return;
+      }
+
+      const data = await res.json();
+      statusEl.textContent = 'done';
+      showLinks(data);
+    }catch(err){
+      statusEl.textContent = 'failed';
+    }
+    sendBtn.disabled = false;
+  });
+
+  function showLinks(data){
+    const rows = [
+      ['file.io', data.fileio],
+      ['catbox', data.catbox],
+      ['0x0.st', data.zero]
+    ];
+    rows.forEach(([label, link]) => {
+      const row = document.createElement('div');
+      row.className = 'link-row';
+      if(link){
+        row.innerHTML = `<span class="label">${label}</span><a href="${link}" target="_blank" rel="noopener">${link}</a>`;
+      }else{
+        row.innerHTML = `<span class="label">${label}</span><span class="down">down</span>`;
+      }
+      linksEl.appendChild(row);
+    });
+  }
+</script>
+</body>
+</html>
