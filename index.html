@@ -122,9 +122,12 @@
     <div id="status"></div>
     <div id="links"></div>
     <div class="hint">max ~4mb</div>
+    <div id="ver" class="hint"></div>
   </div>
 
 <script>
+  const INDEX_VERSION = 'v1';
+
   const dropzone = document.getElementById('dropzone');
   const fileInput = document.getElementById('fileInput');
   const fileName = document.getElementById('fileName');
@@ -206,6 +209,13 @@
       linksEl.appendChild(row);
     });
   }
+
+  const verEl = document.getElementById('ver');
+  verEl.textContent = `index ${INDEX_VERSION} · api ...`;
+  fetch('/api/upload')
+    .then(r => r.json())
+    .then(d => { verEl.textContent = `index ${INDEX_VERSION} · api ${d.version}`; })
+    .catch(() => { verEl.textContent = `index ${INDEX_VERSION} · api unknown`; });
 </script>
 </body>
 </html>
