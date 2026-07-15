@@ -1,10 +1,17 @@
+const VERSION = 'v1';
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-File-Name');
 
   if (req.method === 'OPTIONS') {
     res.status(200).end();
+    return;
+  }
+
+  if (req.method === 'GET') {
+    res.status(200).json({ version: VERSION });
     return;
   }
 
@@ -40,7 +47,13 @@ export default async function handler(req, res) {
     uploadToTransferSh(buffer, fileName)
   ]);
 
-  res.status(200).json({ fileio, tmpfiles, transfersh });
+  res.status(200).json({ version: VERSION, fileio, tmpfiles, transfersh });
+}
+
+function describeError(e) {
+  const parts = [String(e.message || e)];
+  if (e.cause) parts.push(String(e.cause.message || e.cause));
+  return parts.join(' - ');
 }
 
 async function uploadToFileIo(blob, fileName, attempt = 1) {
@@ -53,7 +66,8 @@ async function uploadToFileIo(blob, fileName, attempt = 1) {
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; oo-uploader/1.0)',
         'Accept': 'application/json'
-      }
+      },
+      signal: AbortSignal.timeout(12000)
     });
     const text = await r.text();
     let data;
@@ -66,8 +80,8 @@ async function uploadToFileIo(blob, fileName, attempt = 1) {
     return { ok: true, link: data.link };
   } catch (e) {
     if (attempt < 2) return uploadToFileIo(blob, fileName, attempt + 1);
-    console.error('fileio failed:', e.message || e);
-    return { ok: false, error: String(e.message || e) };
+    console.error('fileio failed:', describeError(e));
+    return { ok: false, error: describeError(e) };
   }
 }
 
@@ -78,7 +92,8 @@ async function uploadToTmpfiles(blob, fileName) {
     const r = await fetch('https://tmpfiles.org/api/v1/upload', {
       method: 'POST',
       body: fd,
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; oo-uploader/1.0)' }
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; oo-uploader/1.0)' },
+      signal: AbortSignal.timeout(12000)
     });
     const text = await r.text();
     let data;
@@ -89,8 +104,8 @@ async function uploadToTmpfiles(blob, fileName) {
     const directLink = data.data.url.replace('tmpfiles.org/', 'tmpfiles.org/dl/');
     return { ok: true, link: directLink };
   } catch (e) {
-    console.error('tmpfiles failed:', e.message || e);
-    return { ok: false, error: String(e.message || e) };
+    console.error('tmpfiles failed:', describeError(e));
+    return { ok: false, error: describeError(e) };
   }
 }
 
@@ -100,13 +115,14 @@ async function uploadToTransferSh(buffer, fileName) {
     const r = await fetch(`https://transfer.sh/${safeName}`, {
       method: 'PUT',
       body: buffer,
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; oo-uploader/1.0)' }
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; oo-uploader/1.0)' },
+      signal: AbortSignal.timeout(12000)
     });
     const text = (await r.text()).trim();
     if (!text.startsWith('http')) throw new Error(`rejected (${r.status}): ${text.slice(0, 150)}`);
     return { ok: true, link: text };
   } catch (e) {
-    console.error('transfersh failed:', e.message || e);
-    return { ok: false, error: String(e.message || e) };
+    console.error('transfersh failed:', describeError(e));
+    return { ok: false, error: describeError(e) };
   }
 }
