@@ -100,7 +100,7 @@
     white-space:nowrap;
   }
   .link-row a:hover{ text-decoration:underline; }
-  .link-row .down{ color:#5a7a9c; }
+  .link-row .down{ color:#5a7a9c; text-align:right; word-break:break-word; font-size:0.72rem; }
   .hint{
     margin-top:14px;
     text-align:center;
@@ -201,7 +201,7 @@
         row.innerHTML = `<span class="label">${label}</span><a href="${result.link}" target="_blank" rel="noopener">${result.link}</a>`;
       }else{
         const reason = result && result.error ? result.error : 'down';
-        row.innerHTML = `<span class="label">${label}</span><span class="down" title="${reason.replace(/"/g,'&quot;')}">down</span>`;
+        row.innerHTML = `<span class="label">${label}</span><span class="down">${reason}</span>`;
       }
       linksEl.appendChild(row);
     });
