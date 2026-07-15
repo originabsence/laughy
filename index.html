@@ -194,13 +194,14 @@
       ['catbox', data.catbox],
       ['0x0.st', data.zero]
     ];
-    rows.forEach(([label, link]) => {
+    rows.forEach(([label, result]) => {
       const row = document.createElement('div');
       row.className = 'link-row';
-      if(link){
-        row.innerHTML = `<span class="label">${label}</span><a href="${link}" target="_blank" rel="noopener">${link}</a>`;
+      if(result && result.ok){
+        row.innerHTML = `<span class="label">${label}</span><a href="${result.link}" target="_blank" rel="noopener">${result.link}</a>`;
       }else{
-        row.innerHTML = `<span class="label">${label}</span><span class="down">down</span>`;
+        const reason = result && result.error ? result.error : 'down';
+        row.innerHTML = `<span class="label">${label}</span><span class="down" title="${reason.replace(/"/g,'&quot;')}">down</span>`;
       }
       linksEl.appendChild(row);
     });
